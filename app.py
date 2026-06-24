@@ -1,5 +1,5 @@
 import streamlit as st
-import tensorflow as tf
+from tflite_runtime.interpreter import Interpreter
 import numpy as np
 from PIL import Image
 import cv2
@@ -14,9 +14,9 @@ st.set_page_config(
 # Load TFLite model
 @st.cache_resource
 def load_model():
-    interpreter = tf.lite.Interpreter(
-        model_path="Plant_Disease_Model_quant.tflite"
-    )
+    interpreter = Interpreter(
+    model_path="Plant_Disease_Model_quant.tflite"
+)
     interpreter.allocate_tensors()
     return interpreter
 
