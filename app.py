@@ -4,55 +4,128 @@ import numpy as np
 from PIL import Image
 import cv2
 
-# Set page config
-st.set_page_config(page_title="Plant Disease Detector", layout="centered")
+# Page configuration
+st.set_page_config(
+    page_title="Plant Disease Detection",
+    page_icon="🌿",
+    layout="centered"
+)
 
-# Load the model (ensure the .keras file is in the same directory)
+# Load TFLite model
 @st.cache_resource
-def load_plant_model():
-    model = tf.keras.models.load_model('Plant_Disease_Model.keras')
-    return model
+def load_model():
+    interpreter = tf.lite.Interpreter(
+        model_path="Plant_Disease_Model_quant.tflite"
+    )
+    interpreter.allocate_tensors()
+    return interpreter
 
-# Hardcoded class names (as derived from your dataset structure)
+# Class names
 class_names = [
-    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-    'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 'Cherry_(including_sour)___healthy',
-    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 'Corn_(maize)___Common_rust_', 
-    'Corn_(maize)___Northern_Leaf_Blight', 'Corn_(maize)___healthy', 'Grape___Black_rot', 
-    'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 'Grape___healthy',
-    'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 'Potato___Early_blight',
-    'Potato___Late_blight', 'Potato___healthy', 'Raspberry___healthy', 'Soybean___healthy',
-    'Squash___Powdery_mildew', 'Strawberry___Leaf_scorch', 'Strawberry___healthy',
-    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold',
-    'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites Two-spotted_spider_mite', 
-    'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
+    'Apple___Apple_scab',
+    'Apple___Black_rot',
+    'Apple___Cedar_apple_rust',
+    'Apple___healthy',
+    'Blueberry___healthy',
+    'Cherry_(including_sour)___Powdery_mildew',
+    'Cherry_(including_sour)___healthy',
+    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot',
+    'Corn_(maize)___Common_rust_',
+    'Corn_(maize)___Northern_Leaf_Blight',
+    'Corn_(maize)___healthy',
+    'Grape___Black_rot',
+    'Grape___Esca_(Black_Measles)',
+    'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)',
+    'Grape___healthy',
+    'Orange___Haunglongbing_(Citrus_greening)',
+    'Peach___Bacterial_spot',
+    'Peach___healthy',
+    'Pepper,_bell___Bacterial_spot',
+    'Pepper,_bell___healthy',
+    'Potato___Early_blight',
+    'Potato___Late_blight',
+    'Potato___healthy',
+    'Raspberry___healthy',
+    'Soybean___healthy',
+    'Squash___Powdery_mildew',
+    'Strawberry___Leaf_scorch',
+    'Strawberry___healthy',
+    'Tomato___Bacterial_spot',
+    'Tomato___Early_blight',
+    'Tomato___Late_blight',
+    'Tomato___Leaf_Mold',
+    'Tomato___Septoria_leaf_spot',
+    'Tomato___Spider_mites Two-spotted_spider_mite',
+    'Tomato___Target_Spot',
+    'Tomato___Tomato_Yellow_Leaf_Curl_Virus',
+    'Tomato___Tomato_mosaic_virus',
     'Tomato___healthy'
 ]
 
+# Title
 st.title("🌿 Plant Disease Detection")
-st.write("Upload a leaf image to identify the disease.")
+st.write("Upload a plant leaf image and detect diseases using AI.")
 
-uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+# Load model
+interpreter = load_model()
+
+# Get model details
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# Upload image
+uploaded_file = st.file_uploader(
+    "Choose a leaf image",
+    type=["jpg", "jpeg", "png"]
+)
 
 if uploaded_file is not None:
-    # Display the image
-    image = Image.open(uploaded_file)
-    st.image(image, caption='Uploaded Image', use_column_width=True)
-    
-    if st.button("Predict"):
-        with st.spinner("Analyzing..."):
-            model = load_plant_model()
-            
-            # Preprocessing (matches our successful Colab tests)
-            img = np.array(image.convert('RGB'))
-            img_resized = cv2.resize(img, (128, 128))
-            img_array = np.expand_dims(np.array(img_resized, dtype='float32'), axis=0)
-            
-            # Prediction
-            predictions = model.predict(img_array)
-            result_idx = np.argmax(predictions[0])
-            confidence = np.max(predictions[0]) * 100
-            
-            st.success(f"Prediction: **{class_names[result_idx]}**")
-            st.info(f"Confidence: **{confidence:.2f}%**")
+
+    image = Image.open(uploaded_file).convert("RGB")
+
+    st.image(
+        image,
+        caption="Uploaded Image",
+        use_container_width=True
+    )
+
+    if st.button("Predict Disease"):
+
+        with st.spinner("Analyzing image..."):
+
+            # Preprocess image
+            img = np.array(image)
+
+            img = cv2.resize(img, (128, 128))
+
+            img = img.astype(np.float32)
+
+            img = np.expand_dims(img, axis=0)
+
+            # Run inference
+            interpreter.set_tensor(
+                input_details[0]['index'],
+                img
+            )
+
+            interpreter.invoke()
+
+            predictions = interpreter.get_tensor(
+                output_details[0]['index']
+            )
+
+            predicted_index = np.argmax(predictions[0])
+
+            confidence = float(
+                np.max(predictions[0]) * 100
+            )
+
+            disease_name = class_names[predicted_index]
+
+            st.success(
+                f"Prediction: {disease_name}"
+            )
+
+            st.info(
+                f"Confidence: {confidence:.2f}%"
+            )
